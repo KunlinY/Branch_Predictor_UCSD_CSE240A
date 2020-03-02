@@ -34,20 +34,23 @@ int verbose;
 //------------------------------------//
 //      Predictor Data Structures     //
 //------------------------------------//
-uint32_t pcindex_bits = 8;
-uint32_t ghistory; //storing the ghistory which is a global variable
-uint8_t *gshareBHT;
+
+#define tempPred(p) (p == WN || p == SN) ? NOTTAKEN : TAKEN
+
+// gshare
+uint32_t branch_history;
+uint8_t *pattern_history_table;
+
+// tournament
 uint32_t *pc_lhr;		 //storing the local history of each of the branches according to pc, pc -> lhr
-uint8_t *local_pred_BHT; //storing the BHT of each of the brances according to the local history, lhr -> prediction
-uint8_t *global_pred_BHT;
+uint8_t *local_BHT; //storing the BHT of each of the brances according to the local history, lhr -> prediction
+uint8_t *global_BHT;
 uint8_t *meta_predictor;
 uint8_t global_outcome;
 uint8_t local_outcome;
-uint32_t outcome_new;
-uint8_t index_lsb;
 uint32_t globalhistory;
 
-// custom data structure
+// custom
 
 #define weight_num 427
 #define hist_width 20
@@ -62,36 +65,16 @@ uint8_t custom_prediction = NOTTAKEN;
 //          Helper Functions          //
 //------------------------------------//
 
-uint8_t state_prediction(uint8_t prediction)
-{
-	uint8_t predicted_outcome;
-	if (prediction == SN || prediction == WN)
-	{
-		predicted_outcome = NOTTAKEN;
-	}
-	else
-	{
-		predicted_outcome = TAKEN;
-	}
-	return predicted_outcome;
-}
-
 //The function is used to update the bht entry for the branch wrt to the present history bits
 void prediction_update(uint8_t *bht_index, uint8_t outcome)
 {
-	if (outcome == TAKEN)
+	if (outcome == TAKEN && *bht_index != ST)
 	{
-		if (*bht_index != 3) //strongly taken state
-		{
-			(*bht_index)++;
-		}
+		(*bht_index)++;
 	}
-	else if (outcome == NOTTAKEN)
+	if (outcome == NOTTAKEN && *bht_index != SN)
 	{
-		if (*bht_index != 0) //strongly not taken state
-		{
-			(*bht_index)--;
-		}
+		(*bht_index)--;
 	}
 }
 
@@ -124,32 +107,38 @@ void prediction_update_custom(int16_t *weight, uint8_t outcome)
 
 void gshare_init()
 {
-	ghistory = 0;
-	gshareBHT = malloc((1 << ghistoryBits) * sizeof(uint8_t));   //this is like an array pointer in which the prediction is getting stored, suppose 10 bits for index, 2^10 prediction bits
-	memset(gshareBHT, 1, (1 << ghistoryBits) * sizeof(uint8_t)); //predict weakly taken for all the indices currently, so each prediction is taken as 1 byte
+	size_t PHTSize = (1 << ghistoryBits) * sizeof(uint8_t);
+
+	branch_history = 0;
+
+	pattern_history_table = (uint8_t *)malloc(PHTSize);  
+	memset(pattern_history_table, 1, PHTSize);
 }
 
-uint8_t
-gshare_predict(uint32_t pc)
+uint8_t gshare_predict(uint32_t pc)
 {
-	ghistory = ghistory & ((1 << ghistoryBits) - 1);
-	pc = (pc & ((1 << ghistoryBits) - 1)); //shifting the pc by two bits and getting index of 'ghistory' bits
-	uint32_t index = (ghistory ^ pc);	  //FIXME: assuming ghistory is the no of bits we are dealing with
-	uint8_t prediction = gshareBHT[index];
-	global_outcome = state_prediction(prediction);
-	return global_outcome;
+	uint32_t index = (branch_history ^ pc & ((1 << ghistoryBits) - 1));
+	uint8_t prediction = pattern_history_table[index];
+	uint8_t final = tempPred(prediction);
+	return final;
 }
 
 //The function is used to train the bht entries with respect to the xor between the present GHR and the incoming PC
 void gshare_train(uint32_t pc, uint8_t outcome)
 {
-	pc = (pc & ((1 << ghistoryBits) - 1));
-	//printf("%d", gshareBHT[pc ^ ghistory] );
-	ghistory = ghistory & ((1 << ghistoryBits) - 1);
-	prediction_update(&(gshareBHT[pc ^ ghistory]), outcome);
-	ghistory = ghistory << 1;
-	ghistory = ghistory & ((1 << ghistoryBits) - 1);
-	ghistory = ghistory | outcome;
+	uint32_t PHTIndex = (pc ^ branch_history) & ((1 << ghistoryBits) - 1);
+
+	if (outcome == TAKEN && pattern_history_table[PHTIndex] != ST)
+	{
+		pattern_history_table[PHTIndex]++;
+	}
+	if (outcome == NOTTAKEN && pattern_history_table[PHTIndex] != SN)
+	{
+		pattern_history_table[PHTIndex]--;
+	}
+
+	branch_history = branch_history << 1;
+	branch_history = branch_history | outcome;
 }
 
 //------------------------------------//
@@ -159,18 +148,15 @@ void gshare_train(uint32_t pc, uint8_t outcome)
 void tournament_init()
 {
 	//local prediction tables
-	//printf("pcindex_bits %d", pcindex_bits);
-	//printf("lhistoryBits %d", lhistoryBits);
-	//printf("ghistoryBits %d", ghistoryBits);
 	pc_lhr = malloc((1 << pcIndexBits) * sizeof(uint32_t));
-	local_pred_BHT = malloc((1 << lhistoryBits) * sizeof(uint8_t));
+	local_BHT = malloc((1 << lhistoryBits) * sizeof(uint8_t));
 	memset(pc_lhr, 0, (1 << pcIndexBits) * sizeof(uint32_t));		   //setting the local history table
-	memset(local_pred_BHT, WN, (1 << lhistoryBits) * sizeof(uint8_t)); //setting the prediction corresponding to the history table
+	memset(local_BHT, WN, (1 << lhistoryBits) * sizeof(uint8_t)); //setting the prediction corresponding to the history table
 
 	//global predictor tables
 	globalhistory = 0;
-	global_pred_BHT = malloc((1 << ghistoryBits) * sizeof(uint8_t));   //this is like an array pointer in which the prediction is getting stored, suppose 10 bits for index, 2^10 prediction bits
-	memset(global_pred_BHT, 1, (1 << ghistoryBits) * sizeof(uint8_t)); //predict weakly taken for all the indices currently, so each prediction is taken as 1 byte
+	global_BHT = malloc((1 << ghistoryBits) * sizeof(uint8_t));   //this is like an array pointer in which the prediction is getting stored, suppose 10 bits for index, 2^10 prediction bits
+	memset(global_BHT, 1, (1 << ghistoryBits) * sizeof(uint8_t)); //predict weakly taken for all the indices currently, so each prediction is taken as 1 byte
 
 	//meta predictor tables
 	meta_predictor = malloc((1 << ghistoryBits) * sizeof(uint8_t));
@@ -182,16 +168,16 @@ tournament_predict_local(uint32_t pc)
 {
 	pc = (pc & ((1 << pcIndexBits) - 1));
 	uint32_t index = pc_lhr[pc];
-	uint8_t prediction = local_pred_BHT[index]; //the index is the local history register for that particular pc
-	local_outcome = state_prediction(prediction);
+	uint8_t prediction = local_BHT[index]; //the index is the local history register for that particular pc
+	local_outcome = tempPred(prediction);
 	return local_outcome;
 }
 uint8_t
 tournament_predict_global(uint32_t pc)
 {
 	uint32_t index = globalhistory & ((1 << ghistoryBits) - 1);
-	uint8_t prediction = global_pred_BHT[index];
-	global_outcome = state_prediction(prediction);
+	uint8_t prediction = global_BHT[index];
+	global_outcome = tempPred(prediction);
 	return global_outcome;
 }
 
@@ -230,13 +216,13 @@ void tournament_train(uint32_t pc, uint8_t outcome)
 	//updating the local_pred_BHT and pc_lhr
 	uint32_t pc_index = pc & ((1 << pcIndexBits) - 1);
 	uint32_t lhr_index = pc_lhr[pc_index];
-	prediction_update(&local_pred_BHT[lhr_index], outcome);
+	prediction_update(&local_BHT[lhr_index], outcome);
 	pc_lhr[pc_index] = pc_lhr[pc_index] << 1;
 	pc_lhr[pc_index] = pc_lhr[pc_index] & ((1 << lhistoryBits) - 1);
 	pc_lhr[pc_index] = pc_lhr[pc_index] | outcome;
 
 	//updating the global_pred_BHT
-	prediction_update(&global_pred_BHT[globalhistory], outcome);
+	prediction_update(&global_BHT[globalhistory], outcome);
 	globalhistory = globalhistory << 1;
 	globalhistory = globalhistory & ((1 << ghistoryBits) - 1);
 	globalhistory = globalhistory | outcome;
