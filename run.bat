@@ -1,0 +1,1 @@
+docker run --rm -it -v //c/Users/kunlin/Desktop/Computer_Architecture/CSE240A:/home/CSE240A prodromou87/ucsd_cse240a
