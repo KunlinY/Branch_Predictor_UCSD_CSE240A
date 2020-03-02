@@ -117,7 +117,7 @@ void gshare_init()
 
 uint8_t gshare_predict(uint32_t pc)
 {
-	uint32_t index = (branch_history ^ pc & ((1 << ghistoryBits) - 1));
+	uint32_t index = (branch_history ^ pc) & ((1 << ghistoryBits) - 1);
 	uint8_t prediction = pattern_history_table[index];
 	uint8_t final = tempPred(prediction);
 	return final;
@@ -126,15 +126,15 @@ uint8_t gshare_predict(uint32_t pc)
 //The function is used to train the bht entries with respect to the xor between the present GHR and the incoming PC
 void gshare_train(uint32_t pc, uint8_t outcome)
 {
-	uint32_t PHTIndex = (pc ^ branch_history) & ((1 << ghistoryBits) - 1);
+	uint32_t index = (branch_history ^ pc) & ((1 << ghistoryBits) - 1);
 
-	if (outcome == TAKEN && pattern_history_table[PHTIndex] != ST)
+	if (outcome == TAKEN && pattern_history_table[index] != ST)
 	{
-		pattern_history_table[PHTIndex]++;
+		pattern_history_table[index]++;
 	}
-	if (outcome == NOTTAKEN && pattern_history_table[PHTIndex] != SN)
+	if (outcome == NOTTAKEN && pattern_history_table[index] != SN)
 	{
-		pattern_history_table[PHTIndex]--;
+		pattern_history_table[index]--;
 	}
 
 	branch_history = branch_history << 1;
