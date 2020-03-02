@@ -8,15 +8,15 @@
 #include <stdio.h>
 #include "predictor.h"
 #include <stdlib.h>
-#include "perceptron_new.h"
+#include "perceptron.h"
 //include the file which you write
 
 //
-// NAME : APURBA BOSE
+// TODO:Student Information
 //
-const char *studentName = "1";
-const char *studentID   = "1";
-const char *email       = "1";
+const char *studentName = "NAME";
+const char *studentID   = "PID";
+const char *email       = "EMAIL";
 
 //------------------------------------//
 //      Predictor Configuration       //

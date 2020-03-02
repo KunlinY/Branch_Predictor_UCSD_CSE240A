@@ -82,7 +82,7 @@ main(int argc, char *argv[])
 {
   // Set defaults
   stream = stdin;
-  bpType = STATIC;
+  bpType = CUSTOM;
   verbose = 0;
 
   // Process cmdline Arguments

@@ -7,8 +7,9 @@ all: main.o predictor.o
 main.o: main.c predictor.h
 	$(CC) $(OPTS) -c main.c
 
-predictor.o: predictor.h predictor.c
-	$(CC) $(OPTS) -c predictor.c
+predictor.o: predictor.h perceptron_new.h predictor.c
+	$(CC) $(OPTS) -c predictor.c 
+	
 
 clean:
 	rm -f *.o predictor;
