@@ -108,22 +108,26 @@ void tournament_init()
 {
 	globalhistory = 0;
 
+	// local
 	localPHT = malloc((1 << pcIndexBits) * sizeof(uint32_t));
 	localBHT = malloc((1 << lhistoryBits) * sizeof(uint8_t));
-	globalBHT = malloc((1 << ghistoryBits) * sizeof(uint8_t));
-	tPredictor = malloc((1 << ghistoryBits) * sizeof(uint8_t));
-
 	memset(localPHT, SN, (1 << pcIndexBits) * sizeof(uint32_t));
 	memset(localBHT, WN, (1 << lhistoryBits) * sizeof(uint8_t));
+
+	// global
+	globalBHT = malloc((1 << ghistoryBits) * sizeof(uint8_t));
 	memset(globalBHT, WN, (1 << ghistoryBits) * sizeof(uint8_t));
+
+	// overall
+	tPredictor = malloc((1 << ghistoryBits) * sizeof(uint8_t));
 	memset(tPredictor, WN, (1 << ghistoryBits) * sizeof(uint8_t));
 }
 
 uint8_t tournament_predict_local(uint32_t pc)
 {
 	uint32_t pcIndex = pc & ((1 << pcIndexBits) - 1);
-	uint32_t index = localPHT[pcIndex];
-	uint8_t prediction = localBHT[index];
+	uint32_t BHTIndex = localPHT[pcIndex];
+	uint8_t prediction = localBHT[BHTIndex];
 
 	prediction = tempPred(prediction);
 
@@ -131,7 +135,7 @@ uint8_t tournament_predict_local(uint32_t pc)
 }
 uint8_t tournament_predict_global(uint32_t pc)
 {
-	uint32_t index = (globalhistory & ((1 << ghistoryBits) - 1));
+	uint32_t index = globalhistory & ((1 << ghistoryBits) - 1);
 	uint8_t prediction = globalBHT[index];
 
 	prediction = tempPred(prediction);
@@ -141,16 +145,16 @@ uint8_t tournament_predict_global(uint32_t pc)
 
 uint8_t tournament_predict(uint32_t pc)
 {
-	uint32_t index = globalhistory & ((1 << ghistoryBits) - 1);
-	uint32_t predictor = tPredictor[index];
+	uint32_t tPIndex = globalhistory & ((1 << ghistoryBits) - 1);
+	uint32_t predictor = tPredictor[tPIndex];
 	
 	if (predictor == SN || predictor == WN)
 	{
-		return tournament_predict_local(pc);
+		return tournament_predict_global(pc);
 	}
 	if (predictor == ST || predictor == WT)
 	{
-		return tournament_predict_global(pc);
+		return tournament_predict_local(pc);
 	}
 }
 
