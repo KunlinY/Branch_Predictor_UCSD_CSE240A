@@ -193,10 +193,7 @@ void tournament_train(uint32_t pc, uint8_t outcome)
 		localBHT[BHTIndex]--;
 	}
 
-	localPHT[pcIndex] = localPHT[pcIndex] << 1;
-	localPHT[pcIndex] = localPHT[pcIndex] & ((1 << lhistoryBits) - 1);
-	localPHT[pcIndex] = localPHT[pcIndex] | outcome;
-	// localPHT[pcIndex] = (BHTIndex << 1) & ((1 << lhistoryBits) - 1) | outcome;
+	localPHT[pcIndex] = (BHTIndex << 1) & ((1 << lhistoryBits) - 1) | outcome;
 
 	prediction = globalBHT[BHTIndex];
 
@@ -209,10 +206,7 @@ void tournament_train(uint32_t pc, uint8_t outcome)
 		globalBHT[globalhistory]--;
 	}
 
-	globalhistory = globalhistory << 1;
-	globalhistory = globalhistory & ((1 << ghistoryBits) - 1);
-	globalhistory = globalhistory | outcome;
-	// globalhistory = (globalhistory << 1) & ((1 << ghistoryBits) - 1) | outcome;
+	globalhistory = (globalhistory << 1) & ((1 << ghistoryBits) - 1) | outcome;
 }
 
 //------------------------------------//
@@ -272,12 +266,12 @@ void custom_train(uint32_t pc, uint8_t outcome)
 			if (outcome == predict)
 				weight = TAKEN;
 
-			if (outcome == TAKEN && custom_weight[index][i] != 127)
+			if (weight == TAKEN && custom_weight[index][i] != 127)
 			{
 				custom_weight[index][i]++;
 			}
 
-			if (outcome == NOTTAKEN && custom_weight[index][i] != -126)
+			if (weight == NOTTAKEN && custom_weight[index][i] != -126)
 			{
 				custom_weight[index][i]--;
 			}
