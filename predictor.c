@@ -219,14 +219,9 @@ void custom_init()
 	memset(custom_gHistory, 0, sizeof(uint16_t) * hist_width);
 }
 
-uint32_t get_index_custom(uint32_t x)
-{
-	return ((x * hist_width) % weight_num);
-}
-
 uint8_t custom_predict(uint32_t pc)
 {
-	uint32_t index = get_index_custom(pc);
+	uint32_t index = customIndex(pc);
 	int16_t prediction = custom_weight[index][0];
 
 	for (int i = 1; i <= hist_width; i++)
@@ -239,6 +234,7 @@ uint8_t custom_predict(uint32_t pc)
 		prediction += offset;
 	}
 
+	custom_overflow = 0;
 	if (custom_train_theta > prediction && prediction > -custom_train_theta)
 	{
 		custom_overflow = 1;
@@ -249,7 +245,7 @@ uint8_t custom_predict(uint32_t pc)
 
 void custom_train(uint32_t pc, uint8_t outcome)
 {
-	uint32_t index = get_index_custom(pc);
+	uint32_t index = customIndex(pc);
 	uint8_t custom_prediction = custom_predict(pc);
 
 	if ((custom_prediction != outcome) || custom_overflow)
