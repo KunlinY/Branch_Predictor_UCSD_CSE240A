@@ -52,13 +52,12 @@ uint32_t globalhistory;
 
 #define weight_num 427
 #define hist_width 20
-#define customIndex(x) ((x * weight_num) % hist_width)
+#define customIndex(x) ((x * hist_width) % weight_num)
 
-uint8_t custom_thres_train = 0;
+uint8_t custom_overflow = 0;
 int16_t custom_weight[weight_num][hist_width + 1];
 int16_t custom_gHistory[hist_width];
-int32_t custom_train_theta;
-uint8_t custom_prediction = NOTTAKEN;
+int32_t custom_train_theta = 2 * hist_width + 14;
 
 //------------------------------------//
 // gshare
@@ -139,7 +138,7 @@ uint8_t tournament_predict_global(uint32_t pc)
 	uint8_t prediction = globalBHT[index];
 
 	prediction = tempPred(prediction);
-	
+
 	return prediction;
 }
 
@@ -147,15 +146,13 @@ uint8_t tournament_predict(uint32_t pc)
 {
 	uint32_t tPIndex = globalhistory & ((1 << ghistoryBits) - 1);
 	uint32_t predictor = tPredictor[tPIndex];
-	
+
 	if (predictor == SN || predictor == WN)
 	{
 		return tournament_predict_global(pc);
 	}
-	if (predictor == ST || predictor == WT)
-	{
-		return tournament_predict_local(pc);
-	}
+
+	return tournament_predict_local(pc);
 }
 
 void tournament_train(uint32_t pc, uint8_t outcome)
@@ -165,17 +162,12 @@ void tournament_train(uint32_t pc, uint8_t outcome)
 
 	if (local != global)
 	{
-		uint8_t status = -1;
+		uint8_t status = TAKEN;
 		uint8_t prediction = tPredictor[globalhistory];
 
 		if (global == outcome)
 		{
 			status = NOTTAKEN;
-		}
-
-		if (local == outcome)
-		{
-			status = TAKEN;
 		}
 
 		if (status == TAKEN && prediction != ST)
@@ -200,7 +192,7 @@ void tournament_train(uint32_t pc, uint8_t outcome)
 	{
 		localBHT[BHTIndex]--;
 	}
-	
+
 	localPHT[pcIndex] = (BHTIndex << 1) & ((1 << lhistoryBits) - 1) | outcome;
 
 	prediction = globalBHT[BHTIndex];
@@ -213,7 +205,7 @@ void tournament_train(uint32_t pc, uint8_t outcome)
 	{
 		globalBHT[globalhistory]--;
 	}
-	
+
 	globalhistory = (globalhistory << 1) & ((1 << ghistoryBits) - 1) | outcome;
 }
 
@@ -221,27 +213,8 @@ void tournament_train(uint32_t pc, uint8_t outcome)
 // custom
 //------------------------------------//
 
-void prediction_update_custom(int16_t *weight, uint8_t outcome)
-{
-	if (outcome == TAKEN)
-	{
-		if (*weight != 127)
-		{
-			(*weight)++;
-		}
-	}
-	else if (outcome == NOTTAKEN)
-	{
-		if (*weight != -126)
-		{
-			(*weight)--;
-		}
-	}
-}
-
 void custom_init()
 {
-	custom_train_theta = (2 * hist_width + 14);
 	memset(custom_weight, 0, sizeof(int16_t) * weight_num * (hist_width + 1));
 	memset(custom_gHistory, 0, sizeof(uint16_t) * hist_width);
 }
@@ -249,32 +222,59 @@ void custom_init()
 uint8_t custom_predict(uint32_t pc)
 {
 	uint32_t index = customIndex(pc);
-	int16_t pred_out = custom_weight[index][0];
+	int16_t prediction = custom_weight[index][0];
 
 	for (int i = 1; i <= hist_width; i++)
 	{
-		pred_out = pred_out + (custom_gHistory[i - 1] ? custom_weight[index][i] : -custom_weight[index][i]);
+		int16_t offset = -custom_weight[index][i];
+
+		if (custom_gHistory[i - 1])
+			offset = custom_weight[index][i];
+
+		prediction += offset;
 	}
 
-	custom_prediction = (pred_out >= 0) ? TAKEN : NOTTAKEN;
-	custom_thres_train = (pred_out < custom_train_theta && pred_out > -custom_train_theta) ? 1 : 0;
+	if (custom_train_theta > prediction && prediction > -custom_train_theta)
+	{
+		custom_overflow = 1;
+	}
 
-	return custom_prediction;
+	return prediction >= 0;
 }
 
 void custom_train(uint32_t pc, uint8_t outcome)
 {
 	uint32_t index = customIndex(pc);
-	if ((custom_prediction != outcome) || custom_thres_train)
+	uint8_t custom_prediction = custom_predict(pc);
+
+	if ((custom_prediction != outcome) || custom_overflow)
 	{
-		prediction_update_custom(&(custom_weight[index][0]), outcome);
+		if (outcome == TAKEN && custom_weight[index][0] != 127)
+		{
+			custom_weight[index][0]++;
+		}
+
+		if (outcome == NOTTAKEN && custom_weight[index][0] != -126)
+		{
+			custom_weight[index][0]--;
+		}
+
 		for (int i = 1; i <= hist_width; i++)
 		{
 			uint8_t predict = custom_gHistory[i - 1];
+			uint8_t weight = NOTTAKEN;
 			if (outcome == predict)
-				prediction_update_custom(&(custom_weight[index][i]), 1);
-			else
-				prediction_update_custom(&(custom_weight[index][i]), 0);
+				weight = TAKEN;
+
+			if (outcome == TAKEN && custom_weight[index][i] != 127)
+			{
+				custom_weight[index][i]++;
+			}
+
+			if (outcome == NOTTAKEN && custom_weight[index][i] != -126)
+			{
+				custom_weight[index][i]--;
+			}
 		}
 	}
 
@@ -282,6 +282,7 @@ void custom_train(uint32_t pc, uint8_t outcome)
 	{
 		custom_gHistory[i] = custom_gHistory[i - 1];
 	}
+
 	custom_gHistory[0] = outcome;
 }
 
@@ -315,8 +316,7 @@ void init_predictor()
 // Returning TAKEN indicates a prediction of taken; returning NOTTAKEN
 // indicates a prediction of not taken
 //
-uint8_t
-make_prediction(uint32_t pc)
+uint8_t make_prediction(uint32_t pc)
 {
 
 	// Make a prediction based on the bpType
