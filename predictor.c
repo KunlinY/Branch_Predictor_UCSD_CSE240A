@@ -162,13 +162,8 @@ void tournament_train(uint32_t pc, uint8_t outcome)
 
 	if (local != global)
 	{
-		uint8_t status = -1;
+		uint8_t status = TAKEN;
 		uint8_t prediction = tPredictor[globalhistory];
-
-		if (local == outcome)
-		{
-			status = TAKEN;
-		}
 
 		if (global == outcome)
 		{
@@ -198,7 +193,10 @@ void tournament_train(uint32_t pc, uint8_t outcome)
 		localBHT[BHTIndex]--;
 	}
 
-	localPHT[pcIndex] = (BHTIndex << 1) & ((1 << lhistoryBits) - 1) | outcome;
+	localPHT[pcIndex] = localPHT[pcIndex] << 1;
+	localPHT[pcIndex] = localPHT[pcIndex] & ((1 << lhistoryBits) - 1);
+	localPHT[pcIndex] = localPHT[pcIndex] | outcome;
+	// localPHT[pcIndex] = (BHTIndex << 1) & ((1 << lhistoryBits) - 1) | outcome;
 
 	prediction = globalBHT[BHTIndex];
 
@@ -211,7 +209,10 @@ void tournament_train(uint32_t pc, uint8_t outcome)
 		globalBHT[globalhistory]--;
 	}
 
-	globalhistory = (globalhistory << 1) & ((1 << ghistoryBits) - 1) | outcome;
+	globalhistory = globalhistory << 1;
+	globalhistory = globalhistory & ((1 << ghistoryBits) - 1);
+	globalhistory = globalhistory | outcome;
+	// globalhistory = (globalhistory << 1) & ((1 << ghistoryBits) - 1) | outcome;
 }
 
 //------------------------------------//
