@@ -162,8 +162,13 @@ void tournament_train(uint32_t pc, uint8_t outcome)
 
 	if (local != global)
 	{
-		uint8_t status = TAKEN;
+		uint8_t status = -1;
 		uint8_t prediction = tPredictor[globalhistory];
+
+		if (local == outcome)
+		{
+			status = TAKEN;
+		}
 
 		if (global == outcome)
 		{
