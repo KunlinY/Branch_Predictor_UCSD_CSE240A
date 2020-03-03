@@ -195,7 +195,7 @@ void tournament_train(uint32_t pc, uint8_t outcome)
 
 	localPHT[pcIndex] = (BHTIndex << 1) & ((1 << lhistoryBits) - 1) | outcome;
 
-	prediction = globalBHT[BHTIndex];
+	prediction = globalBHT[globalhistory];
 
 	if (outcome == TAKEN && prediction != ST)
 	{
